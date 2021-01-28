@@ -14,7 +14,9 @@ name: GitHub Actions
 # yamllint disable-line rule:truthy
 on:
   push:
-    branches: [master]
+    branches:
+      - master
+      - publish
   pull_request:
     branches: [master]
 
@@ -43,6 +45,43 @@ jobs:
 
       - name: build doc
         run: ./.github/actions/build-sof-doc.sh
+
+      - name: prepare file for deploy
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/publish' }}
+        run: |
+          mkdir _build/latest
+          mv -v _build/html/* _build/latest
+          mv _build/latest _build/html/
+          touch _build/html/.nojekyll
+          mv scripts/publish-README.md _build/html/README.md
+          mv scripts/publish-index.html _build/html/index.html
+
+      - name: upload HTML for deploy
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/publish' }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: html
+          path: _build/html
+
+  deploy:
+    needs: build-basic
+    runs-on: ubuntu-20.04
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/publish' }}
+    steps:
+      - name: download HTML
+        uses: actions/download-artifact@v2
+        with:
+          name: html
+          path: html
+
+      - name: deploy
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          personal_token: ${{ secrets.ACTIONS_DEPLOY_KEY }}
+          publish_dir: ./html/
+          publish_branch: master
+          external_repository: xiulipan/xiulipan.github.io
+
 
   build-lax:
 
